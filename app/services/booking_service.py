@@ -68,10 +68,12 @@ class BookingService:
         pipe = self.redis.pipeline()
 
         cache_key = f"booking:{result['id']}"
+        event_cache_key = f"event:{result['event_id']}"
 
         pipe.setex(cache_key, int(TTL.TEN_MINUTES), result["seats_requested"])
         pipe.decr(inventory_cache_key, result["seats_requested"])
         pipe.get(inventory_cache_key)
+        pipe.delete(event_cache_key)
 
         responses = await pipe.execute()
 

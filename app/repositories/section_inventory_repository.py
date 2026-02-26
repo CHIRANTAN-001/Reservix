@@ -71,3 +71,36 @@ class SectionInventoryRepository:
             await self.db.rollback()
             raise
     
+    async def get_all_inventory(self) -> list[dict]:
+        query = text("""            
+            SELECT 
+                e.id AS event_id,
+                si.section_id,
+                e.event_date,
+                si.available_capacity 
+                    - COALESCE(SUM(b.seats_requested), 0) 
+                    as available_capacity
+
+            FROM section_inventory si
+
+            JOIN section s
+                ON s.id = si.section_id
+
+            JOIN events e
+                ON e.id = s.event_id
+
+            LEFT JOIN bookings b
+                ON b.section_id = si.section_id
+                AND b.status = 'HOLD'
+
+            GROUP BY 
+                e.id,
+                si.section_id,
+                e.event_date,
+                si.available_capacity;
+        """)
+        
+        result = await self.db.execute(query)
+        rows = result.mappings().all()
+        
+        return [dict(row) for row in rows]

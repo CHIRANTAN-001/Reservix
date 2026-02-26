@@ -90,6 +90,7 @@ class EventService:
                     key,
                     section["total_capacity"],
                     ex=calculate_ttl(event_row["event_date"]),
+                    nx=True,
                 )
 
             await pipe.execute()
@@ -107,6 +108,10 @@ class EventService:
         if not event_details:
             raise NotFoundException("Event not found")
 
+        keys = [f"section:{s['event_id']}:{s['section_id']}" for s in event_details]
+        values = await self.redis.mget(keys)
+        section_info = dict(zip(keys, values))
+
         response = EventDetailsResponse(
             id=event_details[0]["event_id"],
             name=event_details[0]["event_name"],
@@ -118,8 +123,18 @@ class EventService:
                     name=s["section_name"],
                     price=s["section_price"],
                     total_capacity=s["section_total_capacity"],
-                    available_capacity=s["section_available_capacity"],
-                    is_sold_out=s["is_sold_out"],
+                    available_capacity=int(
+                        section_info.get(
+                            f"section:{s['event_id']}:{s['section_id']}",
+                            s["section_total_capacity"],
+                        )
+                    ),
+                    is_sold_out=int(
+                        section_info.get(
+                            f"section:{s['event_id']}:{s['section_id']}",
+                            s["section_total_capacity"],
+                        )
+                    ) == 0,
                 )
                 for s in event_details
             ],

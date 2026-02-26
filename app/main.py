@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
-from app.core.database import check_db_connection
-from app.core.redis import check_redis_connection
+from app.core.database import check_db_connection, AsyncSessionLocal
+from app.core.redis import check_redis_connection, redis_client
 from app.core.response import (
     register_exception_handlers
 )
@@ -13,6 +13,8 @@ from loguru import logger
 import sys
 
 from app.api.v1 import router as v1_router
+from app.services.cache_rebuild_service import rebuild_section_inventory_cache
+from app.repositories.section_inventory_repository import SectionInventoryRepository
 
 
 # ---------------------------------------------------------------------------
@@ -36,6 +38,14 @@ async def lifespan(app: FastAPI):
             logger.success("Redis connection OK")
         else:
             logger.critical("Redis connection FAILED")
+
+        async with AsyncSessionLocal() as db:
+            inventory_repo = SectionInventoryRepository(db)
+            
+            await rebuild_section_inventory_cache(
+                redis=redis_client,
+                inventory_repo=inventory_repo
+            )
 
         yield  # app runs here
 

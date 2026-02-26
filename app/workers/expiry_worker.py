@@ -49,10 +49,16 @@ async def expiry_loop():
                 print(bookings)
                 
                 for booking in bookings:
-                    cached_key = f"section_inventory:{booking['event_id']}:{booking['section_id']}"
+                    cached_key = f"section:{booking['event_id']}:{booking['section_id']}"
+                    event_cached_key = f"event:{booking['event_id']}"
                     
                     try:
-                        await redis.incrby(cached_key, int(booking['seats_requested']))
+                        pipe = await redis.pipeline()
+                        
+                        pipe.incrby(cached_key, int(booking['seats_requested']))
+                        pipe.delete(event_cached_key)
+                        
+                        await pipe.execute()
                         logger.success(f"Redis updated for key: {cached_key}")
                     except Exception as redis_err:
                         logger.error(f"Redis error for {cached_key}: {redis_err}")

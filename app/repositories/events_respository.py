@@ -53,7 +53,7 @@ class EventRepository:
 
     async def get_details_by_id(self, id: str) -> list[dict]:
         query = text("""
-        SELECT 
+            SELECT 
                 events.id as event_id, 
                 events.name as event_name, 
                 events.slug as event_slug, 
@@ -61,15 +61,9 @@ class EventRepository:
                 section.id as section_id,
                 section.name as section_name,
                 section.price as section_price,
-                section.total_capacity as section_total_capacity,
-                section_inventory.available_capacity as section_available_capacity,
-                CASE
-                    WHEN section_inventory.available_capacity = 0 THEN TRUE
-                    ELSE FALSE
-                END AS is_sold_out
+                section.total_capacity as section_total_capacity
             FROM events 
             JOIN section ON events.id = section.event_id
-            JOIN section_inventory ON section.id = section_inventory.section_id
             WHERE events.id = :id
             FOR SHARE;
         """)
