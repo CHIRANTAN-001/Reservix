@@ -42,10 +42,7 @@ class BookingRepository:
         """)
 
         try:
-            result = await self.db.execute(query, {
-                "id": id,
-                **bind_params
-            })
+            result = await self.db.execute(query, {"id": id, **bind_params})
             row = result.mappings().one()
             return dict(row)
         except IntegrityError:
@@ -54,15 +51,60 @@ class BookingRepository:
         except NoResultFound:
             await self.db.rollback()
             raise NotFoundException("Booking not found")
-        
-    async def get_confirm_by_id(self, id:str) -> dict | None:
+
+    async def get_confirm_by_id(self, id: str) -> dict | None:
         query = text("""
             SELECT id, event_id, section_id, seats_requested, user_id, status, created_at, updated_at
             FROM bookings
             WHERE id = :id
             AND status = 'CONFIRMED';             
         """)
-        
+
         result = await self.db.execute(query, {"id": id})
+        row = result.mappings().one_or_none()
+        return dict(row) if row else None
+
+    async def get_booking_by_id(self, id: str, user_id: str) -> dict | None:
+        query = text("""
+            SELECT 
+                b.id as booking_id, 
+                e.id as event_id, 
+                e.name as event_name,
+                e.slug as event_slug,
+                e.event_date as event_date,
+                s.id as section_id, 
+                s.name as section_name,
+                s.price as section_price,
+                b.seats_requested,
+                u.id as user_id,
+                u.phone_number as user_phone_number,
+                u.email as user_email,
+                u.name as user_name,
+                u.country_code as user_country_code,
+                u.is_phone_verified as user_is_phone_verified,
+                b.status, 
+                b.created_at, 
+                b.updated_at, 
+                b.expires_at
+
+            FROM bookings as b
+
+            INNER JOIN events as e
+                ON b.event_id = e.id
+            INNER JOIN section as s
+                ON b.section_id = s.id
+            INNER JOIN users as u
+                ON b.user_id = u.id 
+            
+            WHERE b.id = :id
+            AND u.id = :user_id;             
+        """)
+
+        result = await self.db.execute(query, 
+            {
+                "id": id,
+                "user_id": user_id
+            }
+        )
         row = result.mappings().one_or_none()
         return dict(row) if row else None

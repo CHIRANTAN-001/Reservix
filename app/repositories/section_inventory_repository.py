@@ -104,3 +104,4 @@ class SectionInventoryRepository:
         rows = result.mappings().all()
         
         return [dict(row) for row in rows]
+    

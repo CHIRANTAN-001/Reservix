@@ -8,7 +8,7 @@ from app.services.booking_service import BookingService
 from app.core.utils import get_current_user
 from app.core.response import created_response, success_response
 
-from app.schemas.booking import BookingCreateRequest, BookingResponse, ConfirmBookingResponse
+from app.schemas.booking import BookingCreateRequest, BookingResponse, ConfirmBookingResponse, BookingDetailsResponse, ConfirmBookingDetails
 
 router = APIRouter(
     prefix="/bookings",
@@ -43,5 +43,35 @@ async def confirm_booking(
     booking: ConfirmBookingResponse = await service.confirm_booking(id=id)
     return success_response(
         message="Booking confirmed successfully",
+        data=booking
+    )
+
+@router.get('/{id}/ttl')
+async def get_booking_by_id(
+    id: str,
+    current_user_id: str = Depends(get_current_user),
+    service: BookingService = Depends(get_booking_service)
+):
+    booking: BookingDetailsResponse = await service.get_booking_by_id(
+        id=id,
+        user_id=current_user_id
+    )
+    return success_response(
+        message="Booking retrieved successfully",
+        data=booking
+    )
+
+@router.get('/{id}')
+async def get_confirm_booking_by_id(
+    id: str,
+    current_user_id: str = Depends(get_current_user),
+    service: BookingService = Depends(get_booking_service)
+):
+    booking: ConfirmBookingDetails = await service.get_confirm_booking_by_id(
+        id=id,
+        user_id=current_user_id
+    )
+    return success_response(
+        message="Booking retrieved successfully",
         data=booking
     )
