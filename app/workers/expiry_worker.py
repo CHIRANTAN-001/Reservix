@@ -22,7 +22,7 @@ logger.add(
     enqueue=True
 )
 
-INTERVAL = 30
+INTERVAL = 10
 BATCH_SIZE = 100
 
 async def expiry_loop():
@@ -51,12 +51,14 @@ async def expiry_loop():
                 for booking in bookings:
                     cached_key = f"section:{booking['event_id']}:{booking['section_id']}"
                     event_cached_key = f"event:{booking['event_id']}"
+                    booking_cached_key = f"booking:{booking['id']}"
                     
                     try:
                         pipe = await redis.pipeline()
                         
                         pipe.incrby(cached_key, int(booking['seats_requested']))
                         pipe.delete(event_cached_key)
+                        pipe.delete(booking_cached_key)
                         
                         await pipe.execute()
                         logger.success(f"Redis updated for key: {cached_key}")

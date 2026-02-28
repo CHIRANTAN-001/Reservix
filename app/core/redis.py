@@ -3,7 +3,7 @@ from typing import cast, Awaitable
 
 from app.core.config import settings
 
-redis_client = from_url(
+redis_client: Redis = from_url(
     settings.REDIS_URL,
     decode_responses=False
 )

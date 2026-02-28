@@ -21,7 +21,7 @@ from uuid import UUID
 from app.schemas.ttl import TTL
 
 from datetime import datetime, timedelta
-import time
+from typing import cast, Awaitable
 
 from app.core.response import NotFoundException, ConflictRequestError
 
@@ -31,6 +31,24 @@ def get_expires_at(ttl: int):
     expires_at = now + timedelta(seconds=ttl)
     return int(expires_at.timestamp())
 
+LUA_SCRIPT = """
+    local value = redis.call('GET', KEYS[1])
+
+    if value == false or value == nil then
+        return -1
+    end
+    
+    local available = tonumber(value)
+    local requested = tonumber(ARGV[1])
+    
+    if available < requested then
+        return -2
+    end
+
+    local remaining = redis.call('DECRBY', KEYS[1], requested)
+
+    return tonumber(remaining)
+"""
 
 class BookingService:
     def __init__(self, db: AsyncSession, redis: Redis) -> None:
@@ -42,15 +60,26 @@ class BookingService:
     async def create_booking(
         self, user_id: str, payload: BookingCreateRequest
     ) -> BookingResponse:
-        # ---------------- Redis GET ----------------
         inventory_cache_key = f"section:{payload.event_id}:{payload.section_id}"
-        inventory_cache = await self.redis.get(inventory_cache_key)
 
-        if inventory_cache is None:
+         # ---------------- Atomic Redis Reservation ----------------
+        remaining_capacity = await cast(
+            Awaitable[int],
+            self.redis.eval(
+                LUA_SCRIPT,
+                1,
+                inventory_cache_key,
+                payload.seats_requested
+            )
+        )
+        
+        if remaining_capacity == -1:
             raise NotFoundException("Section not found")
 
-        if int(inventory_cache) < payload.seats_requested:
+        if remaining_capacity == -2:
             raise ConflictRequestError("Not enough seats available")
+        
+        remaining_capacity = int(remaining_capacity)
 
         # ---------------- TTL Calculation ----------------
         expires_at = get_expires_at(int(TTL.TEN_MINUTES))
@@ -60,28 +89,34 @@ class BookingService:
             **payload.model_dump(), user_id=UUID(user_id), expires_at=expires_at
         )
 
-        result = await self.booking_repo.create(booking_data)
-
-        if result is None:
-            raise Exception("Failed to create booking")
-
-        # ---------------- Redis Pipeline ----------------
-        pipe = self.redis.pipeline()
-
-        cache_key = f"booking:{result['id']}"
+        try:
+            result = await self.booking_repo.create(booking_data)
+            
+            if result is None:
+                raise Exception("Failed to create booking")
+            
+            booking_cache_key = f"booking:{result['id']}"
+            
+            await self.redis.setex(
+                booking_cache_key,
+                int(TTL.TEN_MINUTES),
+                result["seats_requested"]
+            )
+        except Exception as e:
+            # Restore seats if DB insert fails
+            await self.redis.incrby(
+                inventory_cache_key,
+                payload.seats_requested
+            )
+            raise e
+        
+        # ---------------- Redis Lock Key ----------------
         event_cache_key = f"event:{result['event_id']}"
+        await self.redis.delete(event_cache_key)
 
-        pipe.setex(cache_key, int(TTL.TEN_MINUTES), result["seats_requested"])
-        pipe.decr(inventory_cache_key, result["seats_requested"])
-        pipe.get(inventory_cache_key)
-        pipe.delete(event_cache_key)
-
-        responses = await pipe.execute()
-
-        available_capacity = int(responses[2])
-
+        # ---------------- Response ----------------
         section_seat_info = {
-            "available_capacity": available_capacity,
+            "available_capacity": remaining_capacity,
         }
 
         return BookingResponse(
