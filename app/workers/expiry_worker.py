@@ -22,7 +22,7 @@ logger.add(
     enqueue=True
 )
 
-INTERVAL = 10
+INTERVAL = 40
 BATCH_SIZE = 100
 
 async def expiry_loop():
