@@ -9,10 +9,20 @@ services:
     env_file:
       - .env
     command: python -m app.main
+    restart: always
 
-  worker:
+  expiry-worker:
     build: .
-    container_name: reservix-worker
+    container_name: reservix-expiry-worker
     env_file:
       - .env
     command: python -m app.workers.expiry_worker
+    restart: always
+
+  capacity-reconciliation-worker:
+    build: .
+    container_name: reservix-capacity-reconciliation-worker
+    env_file:
+      - .env
+    command: python -m app.workers.capacity_reconciliation_worker
+    restart: always
