@@ -57,6 +57,14 @@ async def confirm_booking(
         data=booking
     )
 
+@router.delete("/delete")
+async def delete_current_booking(
+    current_user_id: str = Depends(get_current_user),
+    service: BookingService = Depends(get_booking_service)
+):
+    await service.expire_current_booking(user_id=current_user_id)
+    return success_response(message="Booking expired successfully")
+    
 @router.get('/{id}/ttl')
 async def get_booking_by_id(
     id: str,

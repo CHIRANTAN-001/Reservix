@@ -43,7 +43,7 @@ def success_response(
     status_code: int = 200
 ) -> JSONResponse:
     """Return a standardized success JSON response"""
-    body = SuccessResponse(message=message, data=data.model_dump(mode="json"))
+    body = SuccessResponse(message=message, data=data.model_dump(mode="json") if data else None)
     response = JSONResponse(
         status_code=status_code, 
         content=body.model_dump(),

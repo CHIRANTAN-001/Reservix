@@ -158,6 +158,17 @@ class BookingService:
             # 4. return response
             return ConfirmBookingResponse(**update_booking_result)
 
+    async def expire_current_booking(self, user_id: str) -> None:
+        async with self.db.begin():
+            expired_booking = await self.booking_repo.expire_current_booking(user_id)
+            if not expired_booking:
+                raise NotFoundException("Booking not found")
+            cache_key = f"booking:{expired_booking['user_id']}"
+            await self.redis.delete(cache_key)
+            section_key = f"section:{expired_booking['event_id']}:{expired_booking['section_id']}"
+            await self.redis.incrby(section_key, expired_booking['seats_requested'])
+            return None
+
     async def get_booking_by_id(self, id: str, user_id: str) -> BookingDetailsResponse:
         result = await self.booking_repo.get_booking_by_id(id, user_id)
         if result is None:

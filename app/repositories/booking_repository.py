@@ -67,6 +67,25 @@ class BookingRepository:
             await self.db.rollback()
             raise NotFoundException("Booking not found")
 
+    async def expire_current_booking(self, user_id: str) -> dict | None:
+        query = text("""
+            UPDATE bookings
+            SET status = 'EXPIRED', updated_at = NOW()
+            WHERE user_id = :user_id
+            AND status = 'HOLD'
+            RETURNING id, event_id, section_id, seats_requested, user_id, status, created_at, updated_at;
+        """)
+
+        try:
+            result = await self.db.execute(query, {"user_id": user_id})
+            row = result.mappings().one_or_none()
+            if row:
+                return dict(row)
+            return None
+        except IntegrityError:
+            await self.db.rollback()
+            raise
+
     async def get_confirm_by_id(self, id: str) -> dict | None:
         query = text("""
             SELECT id, event_id, section_id, seats_requested, user_id, status, created_at, updated_at
