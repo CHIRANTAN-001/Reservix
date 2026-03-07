@@ -139,25 +139,24 @@ class BookingService:
             if confirm_booking:
                 return ConfirmBookingResponse(**confirm_booking)
 
-            else:
                 # if not exists create
-                payload = BookingConfirmRequest(status=BookingStatus.CONFIRMED)
-                # 1. update booking status
-                update_booking_result = await self.booking_repo.update(id, payload)
+            payload = BookingConfirmRequest(status=BookingStatus.CONFIRMED)
+            # 1. update booking status
+            update_booking_result = await self.booking_repo.update(id, payload)
 
-                # 2. update section inventory
-                await self.section_inventory_repo.update(
-                    id=update_booking_result["section_id"],
-                    payload={
-                        "seats_requested": update_booking_result["seats_requested"]
-                    },
-                )
-                # 3. delete cache
-                cache_key = f"booking:{update_booking_result['user_id']}"
+            # 2. update section inventory
+            await self.section_inventory_repo.update(
+                id=update_booking_result["section_id"],
+                payload={
+                    "seats_requested": update_booking_result["seats_requested"]
+                },
+            )
+            # 3. delete cache
+            cache_key = f"booking:{update_booking_result['user_id']}"
 
-                await self.redis.delete(cache_key)
-                # 4. return response
-                return ConfirmBookingResponse(**update_booking_result)
+            await self.redis.delete(cache_key)
+            # 4. return response
+            return ConfirmBookingResponse(**update_booking_result)
 
     async def get_booking_by_id(self, id: str, user_id: str) -> BookingDetailsResponse:
         result = await self.booking_repo.get_booking_by_id(id, user_id)
@@ -234,4 +233,18 @@ class BookingService:
                 name=result["section_name"],
                 price=result["section_price"],
             ),
+        )
+
+    async def get_current_booking(self, user_id: str) -> BookingResponse:
+        booking = await self.booking_repo.get_current_booking(user_id)
+        if booking is None:
+            raise NotFoundException("Booking not found")
+        section_key = f"section:{booking['event_id']}:{booking['section_id']}"
+        available_capacity = await self.redis.get(section_key)
+        section_seat_info = {
+            "available_capacity": int(available_capacity) if available_capacity else 0,
+        }
+        return BookingResponse(
+            **booking,
+            section=SectionSeatInfo(**section_seat_info),
         )

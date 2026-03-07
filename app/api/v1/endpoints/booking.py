@@ -33,6 +33,17 @@ async def create_booking(
         message="Booking created successfully",
         data=booking,
     )
+
+@router.get("/current")
+async def get_current_booking(
+    current_user_id: str = Depends(get_current_user),
+    service: BookingService = Depends(get_booking_service)
+):
+    booking: BookingResponse = await service.get_current_booking(user_id=current_user_id)
+    return success_response(
+        message="Booking retrieved successfully",
+        data=booking
+    )
     
 @router.patch("/{id}/confirm")
 async def confirm_booking(
