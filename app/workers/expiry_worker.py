@@ -51,7 +51,7 @@ async def expiry_loop():
                 for booking in bookings:
                     cached_key = f"section:{booking['event_id']}:{booking['section_id']}"
                     event_cached_key = f"event:{booking['event_id']}"
-                    booking_cached_key = f"booking:{booking['id']}"
+                    booking_cached_key = f"booking:{booking['user_id']}"
                     
                     try:
                         pipe = await redis.pipeline()

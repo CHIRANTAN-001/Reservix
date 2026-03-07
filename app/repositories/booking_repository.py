@@ -18,7 +18,7 @@ class BookingRepository:
         query = text(f"""
             INSERT INTO bookings
             {insert_clause}
-            RETURNING id, event_id, section_id, seats_requested, user_id, status, created_at, updated_at;             
+            RETURNING id, event_id, section_id, seats_requested, user_id, status, created_at, updated_at, expires_at;             
         """)
 
         try:
@@ -28,6 +28,21 @@ class BookingRepository:
         except IntegrityError:
             await self.db.rollback()
             raise
+    
+    async def get_current_booking(self, user_id: str) -> dict | None:
+        query = text("""
+            SELECT id, event_id, section_id, seats_requested, user_id, status, created_at, updated_at, expires_at
+            FROM bookings
+            WHERE user_id = :user_id
+            AND status = 'HOLD'             
+        """)
+        
+        try:
+            result  = await self.db.execute(query, {"user_id": user_id})
+            row = result.mappings().one_or_none()
+            return dict(row) if row else None
+        except NoResultFound:
+            return None
 
     async def update(self, id: str, payload: BookingConfirmRequest) -> dict:
         set_clause, bind_params = _build_update_clause(payload)

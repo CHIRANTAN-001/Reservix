@@ -7,6 +7,8 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     CheckConstraint,
+    Index,
+    UniqueConstraint,
     text
 )
 from sqlalchemy.orm import mapped_column, Mapped
@@ -79,6 +81,7 @@ class Bookings(Base):
     
     __table_args__ = (
         CheckConstraint("seats_requested > 0", name="check_seats_requested"),
+        Index("idx_user_id_status_hold", "user_id", "status", postgresql_where=(status == 'HOLD'), unique=True)
     )
     
     def __repr__(self) -> str:
